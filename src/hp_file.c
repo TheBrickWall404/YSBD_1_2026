@@ -39,6 +39,19 @@ HP_ErrorCode HP_InsertEntry(int fileDesc, Record record) {
   /* TODO: βρείτε ή δεσμεύστε το κατάλληλο μπλοκ και αντιγράψτε εκεί την
      εγγραφή με την blockSetRecord. Μην ξεχάσετε να ενημερώσετε τα
      μεταδεδομένα του αρχείου. */
+  BF_Block *block0;
+  BF_Block_Init(&block0);
+  CALL_BF(BF_GetBlock(fileDesc, 0, block0));
+  
+  HP_info *info = (HP_info *)BF_Block_GetData(block0);
+  
+  /* 2. Επεξεργασία και εισαγωγή εγγραφής ... */
+
+  /* 3. Ενημέρωση Block 0 και άμεσο unpin */
+  info->total_records++;
+  BF_Block_SetDirty(block0);
+  CALL_BF(BF_UnpinBlock(block0));
+  BF_Block_Destroy(&block0);
   return HP_ERROR;
 }
 

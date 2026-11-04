@@ -8,7 +8,7 @@ typedef enum HP_ErrorCode {
   HP_OK,
   HP_ERROR,
   HP_EOF
-} HP_ErrorCode;
+} HP_ErrorCode; 
 
 /*
  * Η δομή HP_info κρατάει τα μεταδεδομένα ενός αρχείου σωρού.
@@ -19,7 +19,14 @@ typedef enum HP_ErrorCode {
  * διαχείριση του iterator της HP_GetNextRecordWithID.
  */
 typedef struct HP_info {
-  /* TODO: συμπληρώστε τα πεδία που χρειάζεστε */
+  int magic;                 /* Αναγνωριστικό αρχείου σωρού για επικύρωση στο HP_OpenFile[cite: 5] */
+  int last_block_id;         /* Το αναγνωριστικό (id) του τελευταίου data block του αρχείου[cite: 5] */
+  int max_records_per_block; /* Το μέγιστο πλήθος εγγραφών που χωρούν σε ένα data block[cite: 5] */
+  int total_records;         /* Συνολικό πλήθος εγγραφών που έχουν εισαχθεί στο αρχείο */
+    
+  /* Κατάσταση του iterator για την HP_GetNextRecordWithID */
+  int cursor_block;          /* Το block στο οποίο βρίσκεται ο iterator[cite: 7] */
+  int cursor_slot;           /* Η θέση/slot της εγγραφής εντός του block[cite: 7] */
 } HP_info;
 
 /* Δημιουργεί και αρχικοποιεί ένα άδειο αρχείο σωρού με όνομα fileName. Αν το

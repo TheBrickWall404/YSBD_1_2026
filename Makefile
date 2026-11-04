@@ -40,7 +40,7 @@ all: myheap bf
 
 myheap: $(MYHEAP_TARGET)
 
-bf: $(BF_TARGET)
+bf: $(BF_TARGET)#
 
 # Σύνδεση
 
