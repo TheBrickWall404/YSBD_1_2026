@@ -49,7 +49,29 @@ HP_ErrorCode HP_CreateFile(const char *fileName) {
 HP_ErrorCode HP_OpenFile(const char *fileName, int *fileDesc) {
   /* TODO: ανοίξτε το αρχείο, διαβάστε τα μεταδεδομένα από το πρώτο μπλοκ και
      ελέγξτε ότι πρόκειται όντως για αρχείο σωρού */
-  return HP_ERROR;
+  //open the heap file and read the metadata from the first block
+  CALL_BF(BF_OpenFile(fileName, fileDesc));
+  BF_Block *block0;
+  BF_Block_Init(&block0);
+  BF_Block **open_blocks0 = HP_GetOpenBlocksTable();
+
+  //check if the first block is already open
+  if (BF_GetBlock(*fileDesc, 0, block0) != BF_OK) {
+    BF_Block_Destroy(&block0);
+    BF_CloseFile(*fileDesc);
+    return HP_ERROR;
+  }
+  //check if the magic number is correct
+  HP_info *info = (HP_info *)BF_Block_GetData(block0);
+  if (info->magic != 0xDEADBEEF) {
+    BF_UnpinBlock(block0);
+    BF_Block_Destroy(&block0);
+    BF_CloseFile(*fileDesc);
+    return HP_ERROR;
+  }
+  //store the block in the open blocks table
+  open_blocks0[*fileDesc] = block0;
+  return HP_OK;
 }
 
 HP_ErrorCode HP_CloseFile(int fileDesc) {
