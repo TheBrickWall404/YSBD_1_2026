@@ -29,6 +29,11 @@ typedef struct HP_info {
   int cursor_slot;           /* Η θέση/slot της εγγραφής εντός του block[cite: 7] */
 } HP_info;
 
+static inline BF_Block** HP_GetOpenBlocksTable(void) {
+    static BF_Block *open_blocks[BF_MAX_OPEN_FILES] = { NULL };
+    return open_blocks;
+}
+
 /* Δημιουργεί και αρχικοποιεί ένα άδειο αρχείο σωρού με όνομα fileName. Αν το
    αρχείο υπάρχει ήδη, επιστρέφεται κωδικός λάθους. */
 HP_ErrorCode HP_CreateFile(
