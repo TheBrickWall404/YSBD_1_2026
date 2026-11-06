@@ -128,23 +128,124 @@ HP_ErrorCode HP_InsertEntry(int fileDesc, Record record) {
   return HP_OK;
 }
 
+//get the metadata block of an open file, NULL if fileDesc is not open
+static BF_Block *getMetaBlock(int fileDesc) {
+  if (fileDesc < 0 || fileDesc >= BF_MAX_OPEN_FILES) return NULL;
+  return HP_GetOpenBlocksTable()[fileDesc];
+}
+
+//number of records in a data block: all blocks are full except maybe the last
+static int recordsInBlock(const HP_info *info, int blockid) {
+  if (blockid < 1 || blockid > info->last_block_id) return 0;
+  if (blockid < info->last_block_id) return info->max_records_per_block;
+  return info->total_records - (info->last_block_id - 1) * info->max_records_per_block;
+}
+
+static int isValidField(const char *field) {
+  return strcmp(field, "id") == 0 || strcmp(field, "firstname") == 0 ||
+         strcmp(field, "lastname") == 0 || strcmp(field, "postcode") == 0 ||
+         strcmp(field, "city") == 0;
+}
+
+//id and postcode are compared as ints, the rest as strings
+static int fieldMatches(const Record *rec, const char *field, const void *value) {
+  if (strcmp(field, "id") == 0) return rec->id == *(const int *)value;
+  if (strcmp(field, "postcode") == 0) return rec->postcode == *(const int *)value;
+  if (strcmp(field, "firstname") == 0) return strcmp(rec->firstname, value) == 0;
+  if (strcmp(field, "lastname") == 0) return strcmp(rec->lastname, value) == 0;
+  return strcmp(rec->city, value) == 0;
+}
+
 HP_ErrorCode HP_PrintAllEntries(int fileDesc, char *fieldName, void *value) {
-  /* TODO: διατρέξτε τα μπλοκ του αρχείου και εκτυπώστε τις εγγραφές που στο
-     πεδίο fieldName έχουν τιμή value. Αν value == NULL, εκτυπώστε 
-     τις όλες. */
-  return HP_ERROR;
+  BF_Block *block0 = getMetaBlock(fileDesc);
+  if (block0 == NULL) return HP_ERROR;
+  if (value != NULL && (fieldName == NULL || !isValidField(fieldName))) return HP_ERROR;
+  HP_info *info = (HP_info *)BF_Block_GetData(block0);
+
+  BF_Block *block;
+  BF_Block_Init(&block);
+  //scan every data block, keeping only one of them pinned at a time
+  for (int b = 1; b <= info->last_block_id; b++) {
+    if (BF_GetBlock(fileDesc, b, block) != BF_OK) {
+      BF_Block_Destroy(&block);
+      return HP_ERROR;
+    }
+    int n = recordsInBlock(info, b);
+    for (int i = 0; i < n; i++) {
+      Record rec;
+      blockGetRecord(block, i, &rec);
+      if (value == NULL || fieldMatches(&rec, fieldName, value))
+        printRecord(rec);
+    }
+    BF_UnpinBlock(block);
+  }
+  BF_Block_Destroy(&block);
+  return HP_OK;
 }
 
 HP_ErrorCode HP_GetEntry(int fileDesc, int blockid, int position,
                          Record *record) {
-  /* TODO: φέρτε το μπλοκ blockid και διαβάστε την εγγραφή της θέσης position
-     με την blockGetRecord */
-  
-  return HP_ERROR;
+  if (record == NULL) return HP_ERROR;
+  memset(record, 0, sizeof(Record));
+  BF_Block *block0 = getMetaBlock(fileDesc);
+  if (block0 == NULL) return HP_ERROR;
+  HP_info *info = (HP_info *)BF_Block_GetData(block0);
+
+  //empty slot or block 0 / nonexistent block
+  if (position < 0 || position >= recordsInBlock(info, blockid)) return HP_ERROR;
+
+  BF_Block *block;
+  BF_Block_Init(&block);
+  if (BF_GetBlock(fileDesc, blockid, block) != BF_OK) {
+    BF_Block_Destroy(&block);
+    return HP_ERROR;
+  }
+  blockGetRecord(block, position, record);
+  BF_UnpinBlock(block);
+  BF_Block_Destroy(&block);
+  return HP_OK;
 }
 
+//id of the last search per open file, a new id restarts the iterator
+static int search_id[BF_MAX_OPEN_FILES];
+
 HP_ErrorCode HP_GetNextRecordWithID(int fileDesc, Record *record, void *value) {
-  /* TODO: υλοποιήστε τον iterator. Η κατάσταση του (πού σταμάτησε η
-     προηγούμενη κλήση) πρέπει να επιβιώνει ανάμεσα στις κλήσεις. */
-  return HP_ERROR;
+  BF_Block *block0 = getMetaBlock(fileDesc);
+  if (block0 == NULL || record == NULL || value == NULL) return HP_ERROR;
+  HP_info *info = (HP_info *)BF_Block_GetData(block0);
+  int id = *(int *)value;
+
+  //the cursor (cursor_block, cursor_slot) is the next position to check
+  if (id != search_id[fileDesc]) {
+    search_id[fileDesc] = id;
+    info->cursor_block = 1;
+    info->cursor_slot = 0;
+  }
+  BF_Block_SetDirty(block0);
+
+  BF_Block *block;
+  BF_Block_Init(&block);
+  for (; info->cursor_block <= info->last_block_id; info->cursor_block++, info->cursor_slot = 0) {
+    if (BF_GetBlock(fileDesc, info->cursor_block, block) != BF_OK) {
+      BF_Block_Destroy(&block);
+      return HP_ERROR;
+    }
+    int n = recordsInBlock(info, info->cursor_block);
+    while (info->cursor_slot < n) {
+      blockGetRecord(block, info->cursor_slot++, record);
+      if (record->id == id) {
+        BF_UnpinBlock(block);
+        BF_Block_Destroy(&block);
+        return HP_OK;
+      }
+    }
+    BF_UnpinBlock(block);
+  }
+  BF_Block_Destroy(&block);
+
+  //end of file: reset the cursor for the next search
+  info->cursor_block = 1;
+  info->cursor_slot = 0;
+  memset(record, 0, sizeof(Record));
+  return HP_EOF;
 }
