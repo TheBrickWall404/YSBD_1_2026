@@ -2,6 +2,7 @@
 #define HP_FILE_H
 
 #include "record.h"
+#include "bf.h"
 
 /* Κωδικοί επιστροφής των συναρτήσεων του επιπέδου σωρού */
 typedef enum HP_ErrorCode {
