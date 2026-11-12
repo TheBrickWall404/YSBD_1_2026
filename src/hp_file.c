@@ -18,6 +18,11 @@
     }                         \
   }
 
+static inline BF_Block** HP_GetOpenBlocksTable(void) {
+    static BF_Block *open_blocks[BF_MAX_OPEN_FILES] = { NULL };
+    return open_blocks;
+}
+
 HP_ErrorCode HP_CreateFile(const char *fileName) {
   /* TODO: δημιουργήστε το αρχείο, δεσμεύστε το πρώτο μπλοκ και αποθηκεύστε
      εκεί ένα στιγμιότυπο της HP_info */
@@ -109,7 +114,6 @@ HP_ErrorCode HP_InsertEntry(int fileDesc, Record record) {
   //get the first block and the metadata of the heap file
   BF_Block *block0 = open_blocks0[fileDesc];
   HP_info *info = (HP_info *)BF_Block_GetData(block0);
-  /* 2. Επεξεργασία και εισαγωγή εγγραφής ... */
   BF_Block *target_block;
   BF_Block_Init(&target_block);
   //check if we need to allocate a new block or get the last block
